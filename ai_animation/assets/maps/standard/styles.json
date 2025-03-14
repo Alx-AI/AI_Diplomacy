@@ -1,0 +1,48 @@
+{
+  "unplayable": {
+    "fill": "#D5D5D5"
+  },
+  "impassable": {
+    "fill": "#353433"
+  },
+  "labeltext": {
+    "font-size": "12px",
+    "fill": "black",
+    "font-family": "Arial"
+  },
+  "currentnoterect": {
+    "fill": "#c5dfea",
+    "stroke-width": "0",
+    "stroke": "black"
+  },
+  "currentnotetext": {
+    "font-family": "serif,sans-serif",
+    "font-size": "12px",
+    "fill": "black",
+    "stroke": "black"
+  },
+  "currentphasetext": {
+    "font-family": "serif,sans-serif",
+    "font-size": "14px",
+    "fill": "black",
+    "stroke": "black"
+  },
+  "invisibleContent": {
+    "stroke": "#000000",
+    "fill": "#000000",
+    "fill-opacity": "0.0",
+    "opacity": "0.0"
+  },
+  "nopower": {
+    "fill": "#ddd2af",
+    "stroke": "black",
+    "stroke-linejoin": "round",
+    "stroke-width": "2"
+  },
+  "water": {
+    "fill": "#c5dfea",
+    "stroke": "black",
+    "stroke-linejoin": "round",
+    "stroke-width": "2"
+  }
+}

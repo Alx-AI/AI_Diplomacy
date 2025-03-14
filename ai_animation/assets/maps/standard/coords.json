@@ -9,7 +9,7 @@
         "x": 720,
         "y": 651
       },
-      "type": null
+      "type": "Inpassable"
     },
     "ADR": {
       "label": {
@@ -215,7 +215,7 @@
         "x": 929.6,
         "y": 538.9
       },
-      "type": null,
+      "type": "Water",
       "isSupplyCenter": false
     },
     "LYO": {
@@ -223,7 +223,7 @@
         "x": 525.8,
         "y": 1107
       },
-      "type": null,
+      "type": "Water",
       "isSupplyCenter": false
     },
     "HEL": {
