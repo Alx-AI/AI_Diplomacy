@@ -1,8 +1,7 @@
 import { gameState } from "./gameState";
 import { logger } from "./logger";
 import { phaseDisplay } from "./domElements";
-import { createSupplyCenters } from "./units/create";
-import { createUnitMesh } from "./units/create";
+import { createSupplyCenters, createUnitMesh, initUnits } from "./units/create";
 import { updateSupplyCenterOwnership, updateLeaderboard, updateMapOwnership } from "./map/state";
 import { updateChatWindows, addToNewsBanner } from "./domElements/chatWindows";
 import { createTweenAnimations } from "./units/animate";
@@ -12,12 +11,12 @@ import { config } from "./config";
 /**
  * Unified function to display a phase with proper transitions
  * Handles both initial display and animated transitions between phases
- * @param index The index of the phase to display
  * @param skipMessages Whether to skip message animations (used for initial load)
  */
-export function displayPhase(index, skipMessages = false) {
-  if (!gameState.gameData || !gameState.gameData.phases || 
-      index < 0 || index >= gameState.gameData.phases.length) {
+export function displayPhase(skipMessages = false) {
+  let index = gameState.phaseIndex
+  if (!gameState.gameData || !gameState.gameData.phases ||
+    index < 0 || index >= gameState.gameData.phases.length) {
     logger.log("Invalid phase index.");
     return;
   }
@@ -25,7 +24,7 @@ export function displayPhase(index, skipMessages = false) {
   // Handle the special case for the first phase (index 0)
   const isFirstPhase = index === 0;
   const currentPhase = gameState.gameData.phases[index];
-  
+
   // Only get previous phase if not the first phase
   const prevIndex = isFirstPhase ? null : (index > 0 ? index - 1 : null);
   const previousPhase = prevIndex !== null ? gameState.gameData.phases[prevIndex] : null;
@@ -35,7 +34,7 @@ export function displayPhase(index, skipMessages = false) {
     // Add fade-out effect
     phaseDisplay.style.transition = 'opacity 0.3s ease-out';
     phaseDisplay.style.opacity = '0';
-    
+
     // Update text after fade-out
     setTimeout(() => {
       phaseDisplay.textContent = `Era: ${currentPhase.name || 'Unknown Era'} (${index + 1}/${gameState.gameData.phases.length})`;
@@ -47,48 +46,25 @@ export function displayPhase(index, skipMessages = false) {
   // Clear existing units except supply centers
   const supplyCenters = gameState.unitMeshes.filter(m => m.userData && m.userData.isSupplyCenter);
   const oldUnits = gameState.unitMeshes.filter(m => m.userData && !m.userData.isSupplyCenter);
-  oldUnits.forEach(m => gameState.scene.remove(m));
-  gameState.unitMeshes = supplyCenters;
 
   // Update supply centers
   if (currentPhase.state?.centers) {
     updateSupplyCenterOwnership(currentPhase.state.centers);
   }
 
-  // Add units for the current phase
-  if (currentPhase.state?.units) {
-    for (const [power, unitArr] of Object.entries(currentPhase.state.units)) {
-      unitArr.forEach(unitStr => {
-        const match = unitStr.match(/^([AF])\s+(.+)$/);
-        if (match) {
-          try {
-            let newUnit = createUnitMesh({
-              power: power.toUpperCase(),
-              type: match[1],
-              province: match[2],
-            });
-            gameState.scene.add(newUnit);
-            gameState.unitMeshes.push(newUnit);
-          } catch (error) {
-            logger.log(`Error creating unit: ${error.message}`);
-          }
-        }
-      });
-    }
-  }
 
   // Update UI elements with smooth transitions
   updateLeaderboard(currentPhase);
   updateMapOwnership(currentPhase);
-  
+
   // Add phase info to news banner if not already there
   const phaseBannerText = `Phase: ${currentPhase.name}`;
   addToNewsBanner(phaseBannerText);
-  
+
   // Log phase details to console only, don't update info panel with this
   const phaseInfo = `Phase: ${currentPhase.name}\nSCs: ${currentPhase.state?.centers ? JSON.stringify(currentPhase.state.centers) : 'None'}\nUnits: ${currentPhase.state?.units ? JSON.stringify(currentPhase.state.units) : 'None'}`;
   console.log(phaseInfo); // Use console.log instead of logger.log
-  
+
   // Update info panel with power information
   logger.updateInfoPanel();
 
@@ -115,15 +91,17 @@ export function displayPhase(index, skipMessages = false) {
  * Used when first loading a game
  */
 export function displayInitialPhase() {
-  displayPhase(0, true);
+  initUnits();
+  gameState.phaseIndex = 0;
+  displayPhase(true);
 }
 
 /**
  * Display a phase with animations
  * Used during normal gameplay
  */
-export function displayPhaseWithAnimation(index) {
-  displayPhase(index, false);
+export function displayPhaseWithAnimation() {
+  displayPhase(false);
 }
 
 /**
@@ -132,7 +110,7 @@ export function displayPhaseWithAnimation(index) {
  */
 export function advanceToNextPhase() {
   console.log("advanceToNextPhase called");
-  
+
   if (!gameState.gameData || !gameState.gameData.phases || gameState.phaseIndex < 0) {
     logger.log("Cannot advance phase: invalid game state");
     return;
@@ -143,12 +121,12 @@ export function advanceToNextPhase() {
 
   // Get current phase
   const currentPhase = gameState.gameData.phases[gameState.phaseIndex];
-  
+
   console.log(`Current phase: ${currentPhase.name}, Has summary: ${Boolean(currentPhase.summary)}`);
   if (currentPhase.summary) {
     console.log(`Summary preview: "${currentPhase.summary.substring(0, 50)}..."`);
   }
-  
+
   if (config.isDebugMode) {
     console.log(`Processing phase transition for ${currentPhase.name}`);
   }
@@ -189,10 +167,10 @@ function moveToNextPhase() {
     clearTimeout(gameState.playbackTimer);
     gameState.playbackTimer = 0;
   }
-  
+
   // Clear any existing animations
   gameState.unitAnimations = [];
-  
+
   // Reset animation state
   gameState.isAnimating = false;
   gameState.messagesPlaying = false;

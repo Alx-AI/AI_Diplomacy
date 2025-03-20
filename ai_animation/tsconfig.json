@@ -9,7 +9,7 @@
       "DOM.Iterable"
     ],
     // Turn the below off later, just for now we're not full TS yet
-    "noCheck": true,
+    //"noCheck": true,
     "skipLibCheck": true,
     /* Bundler mode */
     "moduleResolution": "bundler",

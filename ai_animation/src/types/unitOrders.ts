@@ -49,7 +49,7 @@ export const OrderFromString = z.string().transform((orderStr) => {
   // Check if order is Bounce
   else if (tokens.includes("B")) {
     return {
-      type: "bounce",
+      type: "build",
       unit: { type: unitType, origin },
       raw: orderStr
     }

@@ -145,3 +145,21 @@ export function createUnitMesh(unitData: UnitData): THREE.Group {
 
   return group;
 }
+
+
+export function initUnits() {
+  for (const [power, unitArr] of Object.entries(gameState.gameData.phases[0].state.units)) {
+    unitArr.forEach(unitStr => {
+      const match = unitStr.match(/^([AF])\s+(.+)$/);
+      if (match) {
+        let newUnit = createUnitMesh({
+          power: power.toUpperCase(),
+          type: match[1],
+          province: match[2],
+        });
+        gameState.scene.add(newUnit);
+        gameState.unitMeshes.push(newUnit);
+      }
+    });
+  }
+}

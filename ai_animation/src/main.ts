@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import "./style.css"
 import { initMap } from "./map/create";
+import { initUnits } from "./units/create";
 import { createTweenAnimations } from "./units/animate";
 import * as TWEEN from "@tweenjs/tween.js";
 import { gameState } from "./gameState";
@@ -60,6 +61,7 @@ function initScene() {
 
   // Handle resizing
   window.addEventListener('resize', onWindowResize);
+
   // Kick off animation loop
   animate();
 
@@ -79,7 +81,7 @@ function animate() {
     // Pan camera slowly in playback mode
     cameraPanTime += cameraPanSpeed;
     const angle = 0.9 * Math.sin(cameraPanTime) + 1.2;
-    const radius = 1300;
+    const radius = 1000;
     gameState.camera.position.set(
       radius * Math.cos(angle),
       650 + 80 * Math.sin(cameraPanTime * 0.5),
@@ -116,9 +118,6 @@ function animate() {
     // Manual camera controls when not in playback mode
     gameState.camControls.update();
   }
-
-  // Process unit movement animations using TWEEN.js update
-  TWEEN.update(); // Add explicit TWEEN update call
 
   // Check if all animations are complete
   if (gameState.unitAnimations.length > 0) {
