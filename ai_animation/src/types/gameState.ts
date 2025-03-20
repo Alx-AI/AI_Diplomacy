@@ -4,6 +4,11 @@ import { OrderFromString } from './unitOrders';
 import { ProvinceENUMSchema } from './map';
 
 
+const GameState = z.record(ProvinceENUMSchema, z.object({
+  power: PowerENUMSchema,
+  //unit: z.object({}).optional()
+}))
+
 const PhaseSchema = z.object({
   messages: z.array(z.any()),
   name: z.string(),
@@ -25,3 +30,5 @@ export const GameSchema = z.object({
 
 export type GamePhase = z.infer<typeof PhaseSchema>;
 export type GameSchemaType = z.infer<typeof GameSchema>;
+
+

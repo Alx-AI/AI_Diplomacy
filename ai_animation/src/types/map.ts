@@ -26,11 +26,13 @@ export const PowerENUMSchema = z.preprocess((arg) => {
   return arg;
 }, z.nativeEnum(PowerENUM));
 
+// Where to place the label for the province
 export const LabelSchema = z.object({
   x: z.number(),
   y: z.number(),
 });
 
+// Representation of where to place the unit on the map for a given province.
 export const UnitSchema = z.object({
   x: z.number(),
   y: z.number(),

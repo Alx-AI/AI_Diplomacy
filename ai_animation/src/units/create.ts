@@ -70,7 +70,7 @@ function createFleet(color: string): THREE.Group {
   return group
 }
 
-export function createSupplyCenters(): THREE.Group[] {
+export function createSupplyCenters() {
   let supplyCenterMeshes: THREE.Group[] = [];
   if (!gameState.boardState || !gameState.boardState.provinces) throw new Error("Game not initialized, cannot create SCs");
   for (const [province, data] of Object.entries(gameState.boardState.provinces)) {
@@ -118,10 +118,9 @@ export function createSupplyCenters(): THREE.Group[] {
 
       const pos = getProvincePosition(gameState.boardState, province);
       scGroup.position.set(pos.x, 2, pos.z);
-      supplyCenterMeshes.push(scGroup)
+      gameState.scene.add(scGroup)
     }
   }
-  return supplyCenterMeshes
 }
 export function createUnitMesh(unitData: UnitData): THREE.Group {
   const color = getPowerHexColor(unitData.power);
@@ -144,4 +143,24 @@ export function createUnitMesh(unitData: UnitData): THREE.Group {
   };
 
   return group;
+}
+
+
+export function initUnits() {
+
+  createSupplyCenters()
+  for (const [power, unitArr] of Object.entries(gameState.gameData.phases[0].state.units)) {
+    unitArr.forEach(unitStr => {
+      const match = unitStr.match(/^([AF])\s+(.+)$/);
+      if (match) {
+        let newUnit = createUnitMesh({
+          power: power.toUpperCase(),
+          type: match[1],
+          province: match[2],
+        });
+        gameState.scene.add(newUnit);
+        gameState.unitMeshes.push(newUnit);
+      }
+    });
+  }
 }
