@@ -1,5 +1,5 @@
 PRIMARY OBJECTIVE
-Control 18 supply centers. Nothing else will do.
+Control 18 supply centers or as large of a share as possible.
 
 CRITICAL RULES
 1. Only use orders from the provided possible_orders list

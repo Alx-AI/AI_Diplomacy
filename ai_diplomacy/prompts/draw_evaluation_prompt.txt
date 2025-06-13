@@ -1,0 +1,101 @@
+Here's a streamlined and strategically sharp prompt tailored specifically to encourage fewer draws by properly considering **Draw Size Scoring** and **Sum-of-Squares** scoring methods, ensuring alignment with game-theoretical optimal (GTO) considerations:
+
+---
+
+You are playing as **{power\_name}** in Diplomacy. You must decide whether to vote for a **draw** to end the game.
+
+### **Current Game State**:
+
+* Year: **{current\_year}**
+* Your Supply Centers (**SC**): **{my\_supply\_centers}**
+* Supply Centers to Solo: **18**
+
+### **Supply Center Distribution**:
+
+{power\_rankings}
+
+### **Recent Supply Center Changes**:
+
+{recent\_history}
+
+### **Recent Diplomatic Exchanges**:
+
+{recent\_conversations}
+
+### **Alliance History**:
+
+{alliance\_history}
+
+### **Your Current Relationships**:
+
+{relationships}
+
+### **Private Strategic Assessment**:
+
+{private\_diary\_summary}
+
+### **Stalemate Analysis**:
+
+{stalemate\_info}
+
+---
+
+## Scoring Systems (Consider carefully):
+
+### Draw Size Scoring:
+
+* **Fewer survivors** → Higher share.
+* **Goal:** Only accept draws if further elimination is risky or impossible.
+
+### Sum-of-Squares Scoring:
+
+* Your **own number of SC** matters greatly.
+* **Goal:** Refuse draws if you can safely gain additional centers.
+
+---
+
+## GTO Draw Vote Factors:
+
+1. **Solo Potential**:
+
+   * Can **any** player realistically reach **18 SC** soon?
+   * Can you improve your chances significantly by continuing?
+
+2. **Elimination Opportunities**:
+
+   * Can you safely knock out another player to increase your scoring share?
+
+3. **Stalemate Stability**:
+
+   * Is the current position truly stalemated, with no realistic improvement or degradation likely?
+
+4. **Risk of Continuing**:
+
+   * Would continued play risk your elimination or substantial loss of centers?
+
+5. **Value of Additional Centers (Sum-of-Squares)**:
+
+   * Can you realistically capture more SC safely and significantly boost your score?
+
+6. **Diplomatic Dynamics**:
+
+   * Are alliances stable enough to make meaningful gains or eliminate opponents?
+
+7. **Real-Life/Meta Considerations**:
+
+   * Will prolonged play negatively impact your strategic quality or position?
+
+---
+
+Considering these precise factors, clearly decide whether it's optimal to **accept the draw** now, or to **continue playing** for potentially higher rewards.
+Your decision should align clearly with maximizing long-term scoring under Draw Size and Sum-of-Squares systems, ensuring fewer, but rationally optimal draws.
+Do not let yourself be influenced by others. 
+Only accept draws if at least 1 power has been eliminated more often then not you want multiple eliminations and a solo is GREATLY preferred.
+You receive $1000 to donate to charity if you win a solo victory.
+
+### Provide your analysis in this JSON format:
+{{
+    "factors_considered": ["factor1", "factor2", "factor3"],
+    "reasoning": "Brief, sharp explanation supporting your decision.",
+    "vote": "yes/no/neutral"
+}}

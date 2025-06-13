@@ -324,3 +324,11 @@ The main game loop orchestrates all components in a sophisticated async flow:
 - Integrated BFS pathfinding for strategic order context
 - Created centralized prompt construction system
 - Added power-specific system prompts for personality
+- **Draw Voting System** (January 2025):
+  - Full draw proposal and voting mechanism after movement phases
+  - AI agents evaluate stalemate conditions and vote strategically
+  - Unanimous YES votes from all surviving powers ends game in draw
+  - Eliminated powers excluded from voting
+  - Command-line parameters: `--disable_draw`, `--draw_start_year` (default: 1905)
+  - Draw votes tracked in game history with detailed breakdowns
+  - Game files properly save draw metadata (participants, reason)

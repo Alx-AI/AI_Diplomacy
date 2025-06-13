@@ -31,23 +31,26 @@ def assign_models_to_powers() -> Dict[str, str]:
                     openrouter-meta-llama/llama-3.3-70b-instruct, openrouter-qwen/qwen3-235b-a22b, openrouter-microsoft/phi-4-reasoning-plus:free,
                     openrouter-deepseek/deepseek-prover-v2:free, openrouter-meta-llama/llama-4-maverick:free, openrouter-nvidia/llama-3.3-nemotron-super-49b-v1:free, 
                     openrouter-google/gemma-3-12b-it:free, openrouter-google/gemini-2.5-flash-preview-05-20
+                    openrouter-mistralai/mistral-medium-3, openrouter-qwen/qwq-32b:free
     """
     
     # POWER MODELS
-    """
+    
     return {
-        "AUSTRIA": "o3",
-        "ENGLAND": "gpt-4.1-2025-04-14",
-        "FRANCE": "o4-mini",
-        "GERMANY": "gpt-4o",
-        "ITALY": "gpt-4.1-2025-04-14",
-        "RUSSIA": "gpt-4o",
-        "TURKEY": "o4-mini",
+        "AUSTRIA": "deepseek-reasoner",
+        "ENGLAND": "openrouter-microsoft/phi-4-reasoning-plus",
+        "FRANCE": "openrouter-mistralai/magistral-medium-2506:thinking",
+        "GERMANY": "openrouter-google/gemma-3-27b-it",
+        "ITALY": "openrouter-meta-llama/llama-3.3-70b-instruct:free",
+        "RUSSIA": "openrouter-qwen/qwq-32b",
+        "TURKEY": "openrouter-meta-llama/llama-4-maverick",
     }
-    """
+    
+    
+    
     
     # TEST MODELS
-    
+    """
     return {
         "AUSTRIA": "openrouter-google/gemini-2.5-flash-preview",
         "ENGLAND": "openrouter-google/gemini-2.5-flash-preview",
@@ -57,6 +60,10 @@ def assign_models_to_powers() -> Dict[str, str]:
         "RUSSIA": "openrouter-google/gemini-2.5-flash-preview",
         "TURKEY": "openrouter-google/gemini-2.5-flash-preview",
     }
+    """
+    
+    
+
     
 
 def gather_possible_orders(game: Game, power_name: str) -> Dict[str, List[str]]:

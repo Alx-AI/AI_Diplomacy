@@ -87,6 +87,13 @@ def build_context_prompt(
         else:
             centers_lines.append(f"  {p}: {c}")
     centers_repr = "\n".join(centers_lines)
+    
+    # Get draw vote history
+    draw_vote_summary = game_history.get_draw_vote_summary()
+    if not draw_vote_summary or draw_vote_summary == "No draw votes recorded yet":
+        draw_vote_history_text = "No draw votes have been called yet."
+    else:
+        draw_vote_history_text = draw_vote_summary
 
     context = context_template.format(
         power_name=power_name,
@@ -98,6 +105,7 @@ def build_context_prompt(
         agent_goals="\n".join(f"- {g}" for g in agent_goals) if agent_goals else "None specified",
         agent_relationships="\n".join(f"- {p}: {s}" for p, s in agent_relationships.items()) if agent_relationships else "None specified",
         agent_private_diary=agent_private_diary if agent_private_diary else "(No diary entries yet)",
+        draw_vote_history=draw_vote_history_text,
     )
 
     return context

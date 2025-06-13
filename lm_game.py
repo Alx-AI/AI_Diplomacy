@@ -81,6 +81,17 @@ def parse_arguments():
         action="store_true",
         help="Enable the planning phase for each power to set strategic directives.",
     )
+    parser.add_argument(
+        "--disable_draw",
+        action="store_true",
+        help="Disable draw voting functionality. By default, draw voting is enabled.",
+    )
+    parser.add_argument(
+        "--draw_start_year",
+        type=int,
+        default=1905,
+        help="Year when draw voting becomes available (default: 1905).",
+    )
     return parser.parse_args()
 
 
@@ -194,6 +205,15 @@ async def main():
     # == Add storage for relationships per phase ==
     all_phase_relationships = {}
     all_phase_relationships_history = {} # Initialize history
+
+    # Log draw voting configuration
+    if args.disable_draw:
+        logger.info("Draw voting is DISABLED for this game")
+    else:
+        logger.info(f"Draw voting is ENABLED, starting from year {args.draw_start_year}")
+
+    # Flag to track if game ended by draw
+    game_ended_by_draw = False
 
     while not game.is_game_done:
         phase_start = time.time()
@@ -739,6 +759,106 @@ async def main():
              logger.info(f"No active agents found to perform state update analysis for phase {completed_phase_name}.")
         # --- End Async State Update ---
 
+        # --- Draw Voting Phase ---
+        # Only evaluate draws after movement phases and if the game is in a suitable year
+        # Extract year safely
+        year_int = 1901  # Default
+        try:
+            if len(current_phase) >= 5 and current_phase[1:5].isdigit():
+                year_str = current_phase[1:5]
+                year_int = int(year_str)
+            else:
+                logger.debug(f"Skipping draw vote - phase format not standard: {current_phase}")
+        except Exception as e:
+            logger.warning(f"Could not extract year from phase {current_phase}: {e}")
+            
+        if not args.disable_draw and current_short_phase.endswith('M') and year_int >= args.draw_start_year and game.get_current_phase() != 'COMPLETED':
+            logger.info(f"Initiating draw voting evaluation for phase {current_short_phase}")
+            
+            # Collect draw votes from all active powers
+            draw_voting_tasks = []
+            power_names_for_voting = []
+            
+            for power_name, agent in agents.items():
+                if not game.powers[power_name].is_eliminated():
+                    draw_voting_tasks.append(agent.evaluate_draw_decision(game, game_history, llm_log_file_path))
+                    power_names_for_voting.append(power_name)
+                    
+            if draw_voting_tasks:
+                logger.info(f"Collecting draw votes from {len(draw_voting_tasks)} active powers...")
+                draw_votes = await asyncio.gather(*draw_voting_tasks, return_exceptions=True)
+                
+                # Submit votes to the game
+                for i, vote_result in enumerate(draw_votes):
+                    power_name = power_names_for_voting[i]
+                    if isinstance(vote_result, Exception):
+                        logger.error(f"Error getting draw vote from {power_name}: {vote_result}")
+                        vote_decision = 'neutral'
+                    else:
+                        vote_decision = vote_result
+                    
+                    # Record vote in game history
+                    game_history.add_draw_vote(current_short_phase, power_name, vote_decision)
+                    
+                    # Submit the vote if this is a network game
+                    try:
+                        if hasattr(game, 'vote'):
+                            logger.info(f"{power_name} voting '{vote_decision}' on draw proposal")
+                            game.vote(vote=vote_decision, power_name=power_name)
+                        else:
+                            logger.debug(f"Game does not support voting (non-network game)")
+                    except Exception as e:
+                        logger.error(f"Error submitting vote for {power_name}: {e}")
+                
+                # Log voting summary
+                yes_votes = sum(1 for v in draw_votes if v == 'yes')
+                no_votes = sum(1 for v in draw_votes if v == 'no')
+                neutral_votes = sum(1 for v in draw_votes if v == 'neutral')
+                logger.info(f"Draw voting complete - YES: {yes_votes}, NO: {no_votes}, NEUTRAL: {neutral_votes}")
+                
+                # Create detailed voting record
+                voting_record = {}
+                for i, power_name in enumerate(power_names_for_voting):
+                    if i < len(draw_votes) and not isinstance(draw_votes[i], Exception):
+                        voting_record[power_name] = draw_votes[i]
+                    else:
+                        voting_record[power_name] = 'error'
+                
+                # Add voting info to game history with detailed breakdown
+                game_history.add_strategic_directive(
+                    current_short_phase,
+                    'DRAW_VOTING',
+                    f"Draw votes - YES: {yes_votes}, NO: {no_votes}, NEUTRAL: {neutral_votes} | Details: {json.dumps(voting_record)}"
+                )
+                
+                # Check if draw would be successful (all non-eliminated powers voted yes)
+                if yes_votes == len(draw_votes) and yes_votes > 0:
+                    logger.info(f"DRAW CONDITION MET - All {yes_votes} active powers voted YES")
+                    logger.info("Game will end in a draw after this phase.")
+                    
+                    # Add a final message to game history
+                    game_history.add_message(
+                        phase_name=current_short_phase,
+                        sender='GAME',
+                        recipient='ALL',
+                        message_content=f"Game ended by unanimous draw vote. All {yes_votes} surviving powers agreed to draw."
+                    )
+                    
+                    # Get all surviving powers
+                    surviving_powers = [p for p in game.powers.keys() if not game.powers[p].is_eliminated()]
+                    
+                    # Call the draw method to properly end the game
+                    game.draw(winners=surviving_powers)
+                    
+                    # Mark that the game should end after this phase
+                    game_ended_by_draw = True
+                    
+                elif yes_votes > 0:
+                    logger.info(f"Draw proposal failed - needed {len(draw_votes)} YES votes, got {yes_votes}")
+        elif args.disable_draw and current_short_phase.endswith('M') and year_int >= args.draw_start_year:
+            logger.debug(f"Draw voting is disabled, skipping evaluation for phase {current_short_phase}")
+        # --- End Draw Voting Phase ---
+
         # Append the strategic directives to the manifesto file
         strategic_directives = game_history.get_strategic_directives()
         if strategic_directives:
@@ -749,16 +869,28 @@ async def main():
             with open(manifesto_path, "a") as f:
                 f.write(out_str)
 
+        # Check if game ended by draw
+        if 'game_ended_by_draw' in locals() and game_ended_by_draw:
+            logger.info("Breaking game loop - game ended by unanimous draw vote")
+            break
+
         # Check if we've exceeded the max year
-        year_str = current_phase[1:5]
-        year_int = int(year_str)
         if year_int > max_year:
             logger.info(f"Reached year {year_int}, stopping the test game early.")
             break
 
     # Game is done
     total_time = time.time() - start_whole
-    logger.info(f"Game ended after {total_time:.2f}s. Saving results...")
+    if game_ended_by_draw:
+        logger.info(f"Game ended by DRAW after {total_time:.2f}s. Saving results...")
+        # The draw() method should have been called, which sets the outcome
+        # If not, we can call it now
+        if not game.outcome:
+            # Get all surviving powers
+            surviving_powers = [p for p in game.powers.keys() if not game.powers[p].is_eliminated()]
+            game.draw(winners=surviving_powers)
+    else:
+        logger.info(f"Game ended after {total_time:.2f}s. Saving results...")
 
     # Now save the game with our added data
     output_path = game_file_path
@@ -771,6 +903,17 @@ async def main():
 
     # Generate the saved game JSON using the standard export function
     saved_game = to_saved_game_format(game)
+    
+    # Add draw outcome if applicable
+    if game_ended_by_draw:
+        # The game.outcome should already be set by the draw() method
+        # Format is: [phase_abbr, victor1, victor2, ...]
+        if game.outcome:
+            saved_game['draw_participants'] = game.outcome[1:]  # Skip the phase abbreviation
+            saved_game['draw_reason'] = 'Unanimous draw vote by all surviving powers'
+            logger.info(f"Game ended in draw. Participants: {saved_game['draw_participants']}")
+        else:
+            logger.warning("Draw was supposed to happen but game.outcome is not set")
     
     # Verify phase_summaries are available in game.phase_summaries
     logger.info(f"Game has {len(game.phase_summaries)} phase summaries: {list(game.phase_summaries.keys())}")

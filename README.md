@@ -40,6 +40,14 @@ Each power is represented by a `DiplomacyAgent` with:
 - **Yearly Consolidation**: Automatic summarization of old entries to prevent context overflow
 - **Smart Context Building**: Only relevant history provided to LLMs
 
+### 🤝 Draw Voting System
+- **Automatic Draw Detection**: After movement phases (starting year 1905 by default)
+- **Strategic Evaluation**: Each agent analyzes game state to vote YES/NO/NEUTRAL
+- **Unanimous Requirement**: All surviving powers must vote YES for draw
+- **Eliminated Powers**: Properly excluded from voting
+- **Configurable**: Can be disabled or start year adjusted via command-line
+- **Full Tracking**: Draw votes recorded in game history with detailed breakdowns
+
 ## How AI Agents Work
 
 The following diagram illustrates the complete information flow and decision-making process for each AI agent:
@@ -241,6 +249,12 @@ python lm_game.py --output results/my_game.json
 
 # Run until game completion or specific year
 python lm_game.py --num_negotiation_rounds 2 --planning_phase
+
+# Disable draw voting (games must end by elimination)
+python lm_game.py --disable_draw --num_negotiation_rounds 2
+
+# Enable draw voting from a specific year (default is 1905)
+python lm_game.py --draw_start_year 1903 --num_negotiation_rounds 2
 ```
 
 ### Environment Setup

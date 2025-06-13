@@ -32,6 +32,9 @@ class Phase:
     phase_summaries: Dict[str, str] = field(default_factory=dict)
     # NEW: Store experience/journal updates from each power for this phase
     experience_updates: Dict[str, str] = field(default_factory=dict)
+    # NEW: Store draw votes for this phase
+    draw_votes: Dict[str, str] = field(default_factory=dict)  # power -> vote (yes/no/neutral)
+    draw_vote_reasoning: Dict[str, str] = field(default_factory=dict)  # power -> reasoning
 
     def add_plan(self, power_name: str, plan: str):
         self.plans[power_name] = plan
@@ -86,6 +89,11 @@ class Phase:
 @dataclass
 class GameHistory:
     phases: List[Phase] = field(default_factory=list)
+    
+    @property
+    def phase_list(self):
+        """Compatibility property that returns phase names."""
+        return [phase.name for phase in self.phases]
 
     def add_phase(self, phase_name: str):
         # Avoid adding duplicate phases
@@ -150,6 +158,52 @@ class GameHistory:
         if not self.phases: 
             return {}
         return self.phases[-1].plans
+    
+    def add_strategic_directive(self, phase_name: str, power_name: str, directive: str):
+        """Add a strategic directive (plan) for a power in a specific phase."""
+        phase = self._get_phase(phase_name)
+        if phase:
+            phase.plans[power_name] = directive
+            logger.debug(f"Added strategic directive for {power_name} in {phase_name}")
+    
+    def add_draw_vote(self, phase_name: str, power_name: str, vote: str, reasoning: str = ""):
+        """Record a draw vote for a power in a specific phase."""
+        phase = self._get_phase(phase_name)
+        if phase:
+            phase.draw_votes[power_name] = vote
+            if reasoning:
+                phase.draw_vote_reasoning[power_name] = reasoning
+            logger.debug(f"Added draw vote for {power_name} in {phase_name}: {vote}")
+    
+    def get_draw_vote_history(self, limit: int = 5) -> List[Dict[str, any]]:
+        """Get recent draw vote history."""
+        history = []
+        phases_with_votes = [p for p in self.phases if p.draw_votes]
+        
+        for phase in phases_with_votes[-limit:]:
+            yes_votes = sum(1 for v in phase.draw_votes.values() if v == 'yes')
+            no_votes = sum(1 for v in phase.draw_votes.values() if v == 'no')
+            neutral_votes = sum(1 for v in phase.draw_votes.values() if v == 'neutral')
+            
+            history.append({
+                'phase': phase.name,
+                'summary': f"YES: {yes_votes}, NO: {no_votes}, NEUTRAL: {neutral_votes}",
+                'details': phase.draw_votes.copy()
+            })
+        
+        return history
+    
+    def get_draw_vote_summary(self) -> str:
+        """Get a concise summary of recent draw votes."""
+        history = self.get_draw_vote_history()
+        if not history:
+            return "No draw votes recorded yet"
+        
+        lines = []
+        for vote_data in history:
+            lines.append(f"{vote_data['phase']}: {vote_data['summary']}")
+        
+        return "\n".join(lines)
 
     # NEW METHOD
     def get_messages_this_round(self, power_name: str, current_phase_name: str) -> str:

@@ -1,5 +1,5 @@
 You are playing the board game Diplomacy. Your power is {power_name}. The {current_phase} phase. 
-Your primary goal is to control 18 supply centers.
+Your primary goal is to control 18 supply centers or as large of a share as possible.
 Use the information below to inform your approach.
 
 
@@ -27,3 +27,7 @@ END POSSIBLE ORDERS
 MESSAGES THIS ROUND
 {messages_this_round}
 END MESSAGES
+
+DRAW VOTE HISTORY
+{draw_vote_history}
+END DRAW VOTE HISTORY

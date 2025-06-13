@@ -20,6 +20,9 @@ YOUR GOALS
 YOUR ACTUAL ORDERS
 {your_actual_orders}
 
+DRAW VOTE HISTORY
+{draw_vote_history}
+
 TASK
 Analyze what actually happened this phase compared to negotiations and expectations.
 

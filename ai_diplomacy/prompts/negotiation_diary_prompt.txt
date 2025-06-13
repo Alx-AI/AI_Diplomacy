@@ -16,6 +16,9 @@ Relationships:
 Game State:
 {board_state_str}
 
+Draw Vote History:
+{draw_vote_history}
+
 TASK
 Analyze the negotiations, goals, relationships, and game state to:
 1. Summarize key outcomes and agreements

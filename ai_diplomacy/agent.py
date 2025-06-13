@@ -113,7 +113,8 @@ class DiplomacyAgent:
         # Fix specific patterns that cause trouble
         problematic_patterns = [
             'negotiation_summary', 'relationship_updates', 'updated_relationships',
-            'order_summary', 'goals', 'relationships', 'intent'
+            'order_summary', 'goals', 'relationships', 'intent',
+            'factors_considered', 'reasoning', 'vote'  # Added draw evaluation fields
         ]
         for pattern in problematic_patterns:
             text = re.sub(fr'\n\s*"{pattern}"', f'"{pattern}"', text)
@@ -497,7 +498,7 @@ class DiplomacyAgent:
             # Escape all curly braces in JSON examples to prevent format() from interpreting them
             # First, temporarily replace the actual template variables
             temp_vars = ['power_name', 'current_phase', 'messages_this_round', 'agent_goals', 
-                        'agent_relationships', 'board_state_str', 'ignored_messages_context']
+                        'agent_relationships', 'board_state_str', 'ignored_messages_context', 'draw_vote_history']
             for var in temp_vars:
                 prompt_template_content = prompt_template_content.replace(f'{{{var}}}', f'<<{var}>>')
             
@@ -509,6 +510,9 @@ class DiplomacyAgent:
             for var in temp_vars:
                 prompt_template_content = prompt_template_content.replace(f'<<{var}>>', f'{{{var}}}')
             
+            # Get draw vote history
+            draw_vote_summary = game_history.get_draw_vote_summary()
+            
             # Create a dictionary with safe values for formatting
             format_vars = {
                 "power_name": self.power_name,
@@ -519,7 +523,8 @@ class DiplomacyAgent:
                 "agent_goals": current_goals_str,
                 "allowed_relationships_str": ", ".join(ALLOWED_RELATIONSHIPS),
                 "private_diary_summary": formatted_diary,
-                "ignored_messages_context": ignored_context
+                "ignored_messages_context": ignored_context,
+                "draw_vote_history": draw_vote_summary
             }
             
             # Now try to use the template after preprocessing
@@ -824,6 +829,9 @@ class DiplomacyAgent:
         # Format goals
         goals_str = "\n".join([f"- {g}" for g in self.goals]) if self.goals else "None"
         
+        # Get draw vote history
+        draw_vote_summary = game_history.get_draw_vote_summary()
+        
         # Create the prompt
         prompt = prompt_template.format(
             power_name=self.power_name,
@@ -833,7 +841,8 @@ class DiplomacyAgent:
             your_negotiations=your_negotiations,
             pre_phase_relationships=relationships_str,
             agent_goals=goals_str,
-            your_actual_orders=your_orders_str
+            your_actual_orders=your_orders_str,
+            draw_vote_history=draw_vote_summary
         )
         
         logger.debug(f"[{self.power_name}] Phase result diary prompt:\n{prompt[:500]}...")
@@ -1135,3 +1144,226 @@ class DiplomacyAgent:
             logger.error(f"Agent {self.power_name} failed to generate plan: {e}")
             self.add_journal_entry(f"Failed to generate plan for phase {game.current_phase} due to error: {e}")
             return "Error: Failed to generate plan."
+
+    def _analyze_stalemate(self, game_history: 'GameHistory', my_current_centers: int) -> str:
+        """
+        Analyze whether the game appears to be in a stalemate.
+        Returns a string describing the stalemate situation.
+        """
+        try:
+            # Since we don't have historical center data in game_history,
+            # we can only provide a basic analysis based on current state
+            # and the number of phases that have passed
+            
+            total_phases = len(game_history.phases)
+            if total_phases < 6:
+                return "Too early in game to analyze stalemate patterns"
+            
+            # Extract year from recent phases to see how long the game has been going
+            recent_phase_names = [phase.name for phase in game_history.phases[-6:]]
+            
+            # Basic heuristic: if we're past 1910 and have fewer centers, likely stalemate
+            current_phase = game_history.phases[-1].name if game_history.phases else "Unknown"
+            
+            # Try to extract year from phase name (e.g., "S1905M" -> 1905)
+            current_year = 1901  # Default
+            try:
+                # First check if it looks like a standard phase format
+                if len(current_phase) >= 5 and current_phase[1:5].isdigit():
+                    current_year = int(current_phase[1:5])
+                else:
+                    # Look through phase history for a valid year
+                    for phase in reversed(game_history.phases):
+                        if len(phase.name) >= 5 and phase.name[1:5].isdigit():
+                            current_year = int(phase.name[1:5])
+                            break
+            except Exception as e:
+                logger.debug(f"Could not extract year from phases: {e}")
+            
+            # Stalemate analysis based on game length and current position
+            if current_year >= 1910:
+                if my_current_centers < 10:
+                    return f"Game appears stalemated - Year {current_year} with only {my_current_centers} centers suggests limited expansion opportunities"
+                elif my_current_centers < 14:
+                    return f"Game shows signs of stalemate - Year {current_year} with {my_current_centers} centers, victory (18) seems distant"
+                else:
+                    return f"Game is still competitive - Year {current_year} with {my_current_centers} centers, victory is within reach"
+            elif current_year >= 1907:
+                if my_current_centers < 7:
+                    return f"Position appears weak - Year {current_year} with only {my_current_centers} centers"
+                else:
+                    return f"Game is still developing - Year {current_year}, too early to determine stalemate"
+            else:
+                return f"Game is in early stages - Year {current_year}, stalemate analysis premature"
+            
+        except Exception as e:
+            logger.warning(f"[{self.power_name}] Error analyzing stalemate: {e}")
+            return "Unable to analyze stalemate status"
+
+    async def evaluate_draw_decision(self, game: 'Game', game_history: 'GameHistory', llm_log_file_path: str = None) -> str:
+        """
+        Evaluates whether to vote for a draw based on the current game state.
+        Returns: 'yes', 'no', or 'neutral'
+        
+        Args:
+            game: Current game state
+            game_history: Game history object
+            llm_log_file_path: Path to the CSV file for logging LLM responses
+        """
+        logger.info(f"[{self.power_name}] Evaluating draw decision for phase {game.current_short_phase}")
+        
+        try:
+            # Load the draw evaluation prompt
+            prompt_template = _load_prompt_file("draw_evaluation_prompt.txt")
+            if not prompt_template:
+                logger.error(f"[{self.power_name}] Could not load draw evaluation prompt")
+                return 'neutral'
+            
+            # Extract current year from phase (e.g., 'S1901M' -> 1901)
+            current_year = 1901  # Default
+            try:
+                if len(game.current_short_phase) >= 5 and game.current_short_phase[1:5].isdigit():
+                    current_year = int(game.current_short_phase[1:5])
+                else:
+                    # Try to extract from game state or use a fallback
+                    logger.warning(f"[{self.power_name}] Unexpected phase format: {game.current_short_phase}")
+                    # Try to get year from the phase name in history
+                    if game_history.phases:
+                        last_phase_name = game_history.phases[-1].name
+                        if len(last_phase_name) >= 5 and last_phase_name[1:5].isdigit():
+                            current_year = int(last_phase_name[1:5])
+            except Exception as e:
+                logger.warning(f"[{self.power_name}] Could not extract year from phase: {e}")
+            
+            # Get power rankings
+            power_rankings = []
+            for power_name, power in game.powers.items():
+                if power.units:  # Only include powers still in the game
+                    power_rankings.append(f"{power_name}: {len(power.centers)} supply centers")
+            power_rankings.sort(key=lambda x: int(x.split(': ')[1].split()[0]), reverse=True)
+            
+            # Get my supply centers
+            my_power = game.get_power(self.power_name)
+            my_supply_centers = len(my_power.centers)
+            
+            # Get recent history summary from phase names
+            recent_phases = []
+            phase_count = 0
+            for phase in reversed(game_history.phases):
+                if phase_count >= 5:  # Last 5 phases
+                    break
+                # Just show phase names since we don't have historical center data
+                recent_phases.append(f"{phase.name}")
+                phase_count += 1
+            recent_history = "Recent phases: " + ", ".join(reversed(recent_phases)) if recent_phases else "No recent history"
+            
+            # Get recent conversations (last 3 phases)
+            recent_conversations = []
+            conversation_phases = 0
+            for phase in reversed(game_history.phases):
+                if conversation_phases >= 3:
+                    break
+                if phase.messages:  # Access messages directly from phase object
+                    phase_convos = []
+                    for msg in phase.messages:
+                        if msg.sender == self.power_name or msg.recipient == self.power_name:
+                            phase_convos.append(f"  {msg.sender} → {msg.recipient}: {msg.content[:100]}...")
+                    if phase_convos:
+                        recent_conversations.append(f"{phase.name}:\n" + "\n".join(phase_convos))
+                        conversation_phases += 1
+            recent_conversations_str = "\n\n".join(reversed(recent_conversations)) if recent_conversations else "No recent diplomatic exchanges"
+            
+            # Get alliance history - for now just use current relationships
+            # since we don't store historical relationship data in game_history
+            alliance_history = []
+            current_allies = [p for p, r in self.relationships.items() if r in ['Ally', 'Friendly']]
+            current_enemies = [p for p, r in self.relationships.items() if r in ['Enemy', 'Unfriendly']]
+            if current_allies or current_enemies:
+                alliance_history.append(f"Current: Allies={current_allies}, Enemies={current_enemies}")
+            alliance_history_str = "\n".join(alliance_history) if alliance_history else "No significant alliance history"
+            
+            # Get private diary summary (recent entries)
+            diary_summary = self.format_private_diary_for_prompt(max_entries=5)
+            
+            # Analyze for stalemates
+            stalemate_info = self._analyze_stalemate(game_history, my_supply_centers)
+            
+            # Format the prompt
+            prompt = prompt_template.format(
+                power_name=self.power_name,
+                current_year=current_year,
+                my_supply_centers=my_supply_centers,
+                power_rankings="\n".join(power_rankings),
+                recent_history=recent_history if recent_history else "No recent history available",
+                recent_conversations=recent_conversations_str,
+                alliance_history=alliance_history_str,
+                relationships=json.dumps(self.relationships, indent=2),
+                goals="\n".join(self.goals) if self.goals else "No specific goals set",
+                private_diary_summary=diary_summary,
+                stalemate_info=stalemate_info
+            )
+            
+            # Get response from LLM
+            response = await run_llm_and_log(
+                client=self.client,
+                prompt=prompt,
+                log_file_path=llm_log_file_path,  # Use the main CSV log file
+                power_name=self.power_name,
+                phase=game.current_short_phase,
+                response_type='draw_evaluation'
+            )
+            
+            # Parse the response
+            try:
+                # Try to extract JSON from the response
+                result = self._extract_json_from_text(response)
+                vote = result.get('vote', 'neutral').lower()
+                reasoning = result.get('reasoning', 'No reasoning provided')
+                factors = result.get('factors_considered', [])
+                
+                # Validate vote - handle various formats LLMs might use
+                vote_lower = vote.lower().strip()
+                if vote_lower in ['yes', 'y', 'accept', 'agree', 'draw']:
+                    vote = 'yes'
+                elif vote_lower in ['no', 'n', 'reject', 'disagree', 'continue']:
+                    vote = 'no'
+                elif vote_lower in ['neutral', 'undecided', 'abstain', 'maybe']:
+                    vote = 'neutral'
+                else:
+                    logger.warning(f"[{self.power_name}] Invalid vote '{vote}', defaulting to 'neutral'")
+                    vote = 'neutral'
+                
+                # Log the decision
+                self.add_journal_entry(f"Draw vote decision: {vote}. Reasoning: {reasoning}")
+                self.add_diary_entry(f"Voted '{vote}' on draw proposal. Factors: {', '.join(factors)}", game.current_short_phase)
+                logger.info(f"[{self.power_name}] Draw vote: {vote} - {reasoning}")
+                
+                # Log the structured vote result for analysis
+                if llm_log_file_path:
+                    vote_summary = {
+                        'vote': vote,
+                        'reasoning': reasoning,
+                        'factors': factors,
+                        'my_centers': my_supply_centers,
+                        'year': current_year
+                    }
+                    log_llm_response(
+                        log_file_path=llm_log_file_path,
+                        model_name=self.client.model_name,
+                        power_name=self.power_name,
+                        phase=game.current_short_phase,
+                        response_type='draw_vote_result',
+                        raw_input_prompt=prompt,
+                        raw_response=json.dumps(vote_summary),
+                        success="TRUE"
+                    )
+                
+                return vote
+                
+            except Exception as e:
+                logger.error(f"[{self.power_name}] Error parsing draw evaluation response: {e}")
+                return 'neutral'
+                
+        except Exception as e:
+            logger.error(f"[{self.power_name}] Error in draw evaluation: {e}", exc_info=True)
+            return 'neutral'
